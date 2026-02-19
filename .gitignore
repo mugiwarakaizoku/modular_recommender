@@ -16,7 +16,7 @@ data/
 #huggingface
 .hf/
 
-.env
+env/.env
 .vscode
 
 checkpoints/
