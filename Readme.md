@@ -1,4 +1,4 @@
-# Recommender Systems
+# Modular Recommender
 
 ## ⚙️ Setup
 
@@ -46,7 +46,7 @@ make mlflow
 ### Run TensorBoard
 make tensorboard
 
-### 🧠 Notes
+## 🧠 Notes
 
 Do NOT commit .env files
 
