@@ -1,0 +1,26 @@
+name: rec-sys-base
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - tqdm
+  - jupyter
+  - ipykernel
+  - pytest
+  - mlflow
+  - pre-commit
+  - black
+  - pip
+  - pip:
+      - datasets
+      - gitpython
+      - tensorboard
