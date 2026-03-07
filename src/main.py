@@ -2,7 +2,7 @@ from pathlib import Path
 from data.loader import load_interactions
 from recommenders.popularity import PopularityRecommender
 import random
-from evaluation.metrics import precision_k, recall_k
+from evaluation.metrics import precision_k, recall_k, ndcg_k
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 data_dir = PROJECT_ROOT / "data" / "raw"
@@ -28,3 +28,6 @@ print("Precision: ", precision)
 
 recall = recall_k(actuals, recomm_df)
 print("Recall: ", recall)
+
+ndcg = ndcg_k(actuals, recomm_df)
+print("nDCG: ", ndcg)
