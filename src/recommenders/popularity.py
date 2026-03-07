@@ -34,3 +34,12 @@ class PopularityRecommender(BaseRecommender):
             how="left",
         )
         return recomm_df
+
+    def recommend_batch(self, user_ids, n=10):
+        all_recomms = []
+        for user_id in user_ids:
+            recomm_df = self.recommend(user, n)
+            recomm_df["customer_unique_id"] = user
+            all_recomms.append(recomm_df)
+
+        return pd.concat(all_recomms, ignore_index=True)
