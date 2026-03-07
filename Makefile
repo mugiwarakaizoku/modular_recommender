@@ -4,7 +4,7 @@ test:
 	pytest
 
 format:
-	black src tests
+	black src
 
 lint:
 	pre-commit run --all-files
