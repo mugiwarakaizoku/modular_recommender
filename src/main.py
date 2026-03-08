@@ -1,5 +1,5 @@
 from pathlib import Path
-from data.loader import load_interactions
+from data.loader import load_interactions, build_user_product_matrix
 from recommenders.popularity import PopularityRecommender
 import random
 from evaluation.metrics import precision_k, recall_k, ndcg_k
@@ -7,7 +7,7 @@ from evaluation.metrics import precision_k, recall_k, ndcg_k
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 data_dir = PROJECT_ROOT / "data" / "raw"
 
-interactions = load_interactions(data_dir)
+interactions = load_interactions(data_dir, min_interactions=2)
 
 model = PopularityRecommender()
 model.fit(interactions)
@@ -31,3 +31,6 @@ print("Recall: ", recall)
 
 ndcg = ndcg_k(actuals, recomm_df)
 print("nDCG: ", ndcg)
+
+user_product_matrix = build_user_product_matrix(interactions)
+print("User Product Matrix: \n", user_product_matrix)

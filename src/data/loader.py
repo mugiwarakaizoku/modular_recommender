@@ -81,3 +81,23 @@ def load_interactions(
         how="left",
     ).merge(df_prodcut_category, on="product_category_name", how="left")
     return interactions
+
+
+def build_user_product_matrix(interactions: pd.DataFrame) -> pd.DataFrame:
+    """
+    Converts Interactions dataframe into a dense user-product matrix
+    Rows represent users, columns represent products, values represent interaction counts
+
+    Parameters:
+    Interactions: Output of load_interactions()
+
+    Returns: A dense user-product matrix
+    """
+    matrix = interactions.pivot_table(
+        index="customer_unique_id",
+        columns="product_id",
+        values="interaction_count",
+        fill_value=0,
+    )
+    matrix.columns.name = None
+    return matrix
