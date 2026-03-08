@@ -1,5 +1,8 @@
 import pandas as pd
 from pathlib import Path
+from scipy.sparse import csr_matrix, spmatrix
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.preprocessing import normalize
 
 
 def load_interactions(
@@ -83,15 +86,24 @@ def load_interactions(
     return interactions
 
 
-def build_user_product_matrix(interactions: pd.DataFrame) -> pd.DataFrame:
+def build_user_product_matrix(
+    interactions: pd.DataFrame, normalization: str | None = None
+) -> tuple[spmatrix, pd.Index, pd.Index]:
     """
     Converts Interactions dataframe into a dense user-product matrix
     Rows represent users, columns represent products, values represent interaction counts
 
     Parameters:
-    Interactions: Output of load_interactions()
+    interactions: Output of load_interactions()
+    normalization: How to normalize user-product matrix
+               None - No Normalization
+               "l2" - L2 row normalization. Similarity is cacluated based on direction irrespective of volume of purchases
+               "tfidf" - Tf-Idf transform. Downweights products bought by multiple users. Gives more weightage to niche purchases than common ones
 
-    Returns: A dense user-product matrix
+    Returns:
+    sparse_matrix: A sparse user-product matrix
+    users: index of user ids
+    products: index of product ids
     """
     matrix = interactions.pivot_table(
         index="customer_unique_id",
@@ -100,4 +112,21 @@ def build_user_product_matrix(interactions: pd.DataFrame) -> pd.DataFrame:
         fill_value=0,
     )
     matrix.columns.name = None
-    return matrix
+    users = matrix.index
+    products = matrix.columns
+
+    sparse_matrix = csr_matrix(matrix.values)
+
+    if normalization == "l2":
+        sparse_matrix = normalize(sparse_matrix, norm="l2")
+
+    elif normalization == "tfidf":
+        tfidf = TfidfTransformer()
+        sparse_matrix = tfidf.fit_transform(sparse_matrix)
+
+    elif normalization is not None:
+        raise ValueError(
+            f"Unknown normalization: {normalization}. Chose form None, 'l2', 'tfidf' "
+        )
+
+    return sparse_matrix, users, products
