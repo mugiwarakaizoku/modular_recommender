@@ -21,13 +21,6 @@ class PopularityRecommender(BaseRecommender):
             "product_id"
         ].apply(set)
 
-        self.product_info = self.interactions[
-            ["product_id", "product_category_name", "product_category_name_english"]
-        ].drop_duplicates()
-
-    def _add_product_info(self, recomm_df):
-        return recomm_df.merge(self.product_info, on="product_id", how="left")
-
     def recommend(self, user_id, n=10):
         if not hasattr(self, "top_items"):
             raise RuntimeError("Model must be fitted before recommending")
@@ -41,10 +34,5 @@ class PopularityRecommender(BaseRecommender):
         return pd.DataFrame({"customer_unique_id": user_id, "product_id": recomm})
 
     def recommend_batch(self, user_ids, n=10):
-        all_recomms = []
-        for user_id in user_ids:
-            recomm_df = self.recommend(user_id, n)
-            all_recomms.append(recomm_df)
-        result = pd.concat(all_recomms, ignore_index=True)
-
-        return self._add_product_info(result)
+        result = [self.recommend(user_id, n) for user_id in user_ids]
+        return pd.concat(result, ignore_index=True)
