@@ -1,7 +1,7 @@
 from pathlib import Path
 from data.loader import load_interactions, build_user_product_matrix
 from recommenders.popularity import PopularityRecommender
-from recommenders.collaborative_filter import UserBasedCF
+from recommenders.collaborative_filter import UserBasedCF, ProductBasedCF
 import random
 from evaluation.metrics import precision_k, recall_k, ndcg_k
 
@@ -17,7 +17,7 @@ random.seed(33)
 user_id_list = list(interactions["customer_unique_id"].unique())
 sample_users = random.sample(user_id_list, 1000)
 
-model = UserBasedCF()
+model = ProductBasedCF()
 model.fit(interactions)
 recomms = model.recommend_batch(user_ids=sample_users)
 recomms = recomms.merge(product_info, on="product_id", how="left")
