@@ -148,6 +148,7 @@ class MatrixFactorizerCF(BaseRecommender):
         n_iter=10000,
         sgd_sample_size=10000,
         lr=0.01,
+        reg=0.01,
     ):
         (
             self.user_product_matrix,
@@ -223,9 +224,10 @@ class MatrixFactorizerCF(BaseRecommender):
             err = sampled_actuals - pred
 
             user_updates = lr * (
-                err[:, None] * p_vecs
+                err[:, None] * p_vecs - reg * u_vecs
             )  # sgd_sample_size * embedding_dim
-            product_updates = lr * (err[:, None] * u_vecs)
+
+            product_updates = lr * (err[:, None] * u_vecs - reg * p_vecs)
 
             # handles updates for repeated users correctly
             np.add.at(self.user_embedding_matrix, sampled_user_ids, user_updates)
@@ -234,8 +236,16 @@ class MatrixFactorizerCF(BaseRecommender):
             np.add.at(tmp_prod_embedding, sampled_product_ids, product_updates)
 
             # bias updates
-            np.add.at(self.user_bias, sampled_user_ids, lr * err)
-            np.add.at(self.product_bias, sampled_product_ids, lr * err)
+            np.add.at(
+                self.user_bias,
+                sampled_user_ids,
+                lr * (err - reg * self.user_bias[sampled_user_ids]),
+            )
+            np.add.at(
+                self.product_bias,
+                sampled_product_ids,
+                lr * (err - reg * self.product_bias[sampled_product_ids]),
+            )
 
     def predict(self, user_ids, product_ids):
         user_idxs = self.user_ids.get_indexer(user_ids)
