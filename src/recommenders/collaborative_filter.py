@@ -167,6 +167,36 @@ class MatrixFactorizerCF(BaseRecommender):
 
         user_product_coo = self.user_product_matrix.tocoo()
 
+        # user bias
+        csr_data = self.user_product_matrix.data
+        csr_ind_ptr = self.user_product_matrix.indptr
+
+        self.global_mean = csr_data.mean() if csr_data.size > 0 else 0.0
+
+        row_sum = np.add.reduceat(csr_data, csr_ind_ptr[:-1])
+        row_cnt = np.diff(csr_ind_ptr)
+        user_means = np.divide(
+            row_sum,
+            row_cnt,
+            out=np.full(n_users, self.global_mean, dtype=csr_data.dtype),
+            where=row_cnt != 0,
+        )
+        self.user_bias = user_means - self.global_mean
+
+        # product bias
+        coo_data = user_product_coo.data
+        cols = user_product_coo.col
+        col_sum = np.bincount(cols, weights=coo_data, minlength=n_products)
+        col_cnt = np.bincount(cols, minlength=n_products)
+
+        product_means = np.divide(
+            col_sum,
+            col_cnt,
+            out=np.full(n_products, self.global_mean, dtype=coo_data.dtype),
+            where=col_cnt != 0,
+        )
+        self.product_bias = product_means - self.global_mean
+
         for i in range(n_iter):
             actual_sample_size = min(sgd_sample_size, len(user_product_coo.data))
             idx = np.random.choice(
@@ -184,10 +214,17 @@ class MatrixFactorizerCF(BaseRecommender):
                 :, sampled_product_ids
             ].T  # sgd_sample_size*embedding_dim
 
-            pred = np.sum(u_vecs * p_vecs, axis=1)  # sgd_sample_size
+            pred = (
+                np.sum(u_vecs * p_vecs, axis=1)
+                + self.user_bias[sampled_user_ids]
+                + self.product_bias[sampled_product_ids]
+                + self.global_mean
+            )  # sgd_sample_size
             err = sampled_actuals - pred
 
-            user_updates = lr * (err[:, None] * p_vecs)
+            user_updates = lr * (
+                err[:, None] * p_vecs
+            )  # sgd_sample_size * embedding_dim
             product_updates = lr * (err[:, None] * u_vecs)
 
             # handles updates for repeated users correctly
@@ -195,6 +232,10 @@ class MatrixFactorizerCF(BaseRecommender):
 
             tmp_prod_embedding = self.product_embedding_matrix.T
             np.add.at(tmp_prod_embedding, sampled_product_ids, product_updates)
+
+            # bias updates
+            np.add.at(self.user_bias, sampled_user_ids, lr * err)
+            np.add.at(self.product_bias, sampled_product_ids, lr * err)
 
     def predict(self, user_ids, product_ids):
         user_idxs = self.user_ids.get_indexer(user_ids)
@@ -207,9 +248,19 @@ class MatrixFactorizerCF(BaseRecommender):
             missing = np.array(product_ids)[product_idxs == -1].tolist()
             raise ValueError(f"Unknown product_ids: {missing}")
 
-        user_embedding = self.user_embedding_matrix[user_idxs]
-        product_embedding = self.product_embedding_matrix[:, product_idxs]
-        return user_embedding @ product_embedding
+        user_embedding = self.user_embedding_matrix[user_idxs]  # n_user*embedd
+        product_embedding = self.product_embedding_matrix[
+            :, product_idxs
+        ].T  # n_product*embedd
+
+        scores = (
+            np.sum(user_embedding * product_embedding, axis=1)
+            + self.global_mean
+            + self.user_bias[user_idxs]
+            + self.product_bias[product_idxs]
+        )
+
+        return scores
 
     def recommend(self, user_id, n=10):
         if not hasattr(self, "user_embedding_matrix"):
@@ -223,8 +274,11 @@ class MatrixFactorizerCF(BaseRecommender):
 
         user_embedding = self.user_embedding_matrix[user_idx]  # 1*embedding_dim
         predictions = (
-            user_embedding @ self.product_embedding_matrix
-        ).flatten()  # n_products
+            (user_embedding @ self.product_embedding_matrix).flatten()
+            + self.global_mean
+            + self.user_bias[user_idx]
+            + self.product_bias
+        )  # n_products
         predictions[purchased_products_idx] = -np.inf
 
         top_product_idxs = np.argpartition(predictions, -n)[-n:]
