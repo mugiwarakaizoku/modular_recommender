@@ -46,6 +46,10 @@ class UserBasedCF(BaseRecommender):
         product_scores[seen_items] = 0
 
         top_product_idxs = np.argpartition(product_scores, -n)[-n:]
+        top_product_idxs = top_product_idxs[
+            np.argsort(product_scores[top_product_idxs])[::-1]
+        ]
+
         top_product_ids = self.product_ids[top_product_idxs]
         top_product_scores = product_scores[top_product_idxs]
 
@@ -110,6 +114,10 @@ class ProductBasedCF(BaseRecommender):
         product_scores[purchased_products_idx] = 0
 
         top_product_idxs = np.argpartition(product_scores, -n)[-n:]
+        top_product_idxs = top_product_idxs[
+            np.argsort(product_scores[top_product_idxs])[::-1]
+        ]
+
         top_product_ids = self.product_ids[top_product_idxs]
         top_product_scores = product_scores[top_product_idxs]
 
@@ -169,15 +177,20 @@ class MatrixFactorizerCF(BaseRecommender):
             sampled_product_ids = user_product_coo.col[idx]  # sgd_sampled_size*1
             sampled_actuals = user_product_coo.data[idx]  # sgd_sampled_size*1
 
-            u_vecs = self.user_embedding_matrix[sampled_user_ids]
-            p_vecs = self.product_embedding_matrix[:, sampled_product_ids].T
+            u_vecs = self.user_embedding_matrix[
+                sampled_user_ids
+            ]  # sgd_sample_size*embedding_dim
+            p_vecs = self.product_embedding_matrix[
+                :, sampled_product_ids
+            ].T  # sgd_sample_size*embedding_dim
 
-            pred = np.sum(u_vecs * p_vecs, axis=1)
+            pred = np.sum(u_vecs * p_vecs, axis=1)  # sgd_sample_size
             err = sampled_actuals - pred
 
             user_updates = lr * (err[:, None] * p_vecs)
             product_updates = lr * (err[:, None] * u_vecs)
 
+            # handles updates for repeated users correctly
             np.add.at(self.user_embedding_matrix, sampled_user_ids, user_updates)
 
             tmp_prod_embedding = self.product_embedding_matrix.T
@@ -215,6 +228,10 @@ class MatrixFactorizerCF(BaseRecommender):
         predictions[purchased_products_idx] = -np.inf
 
         top_product_idxs = np.argpartition(predictions, -n)[-n:]
+        top_product_idxs = top_product_idxs[
+            np.argsort(predictions[top_product_idxs])[::-1]
+        ]
+
         top_product_ids = self.product_ids[top_product_idxs]
         top_product_scores = predictions[top_product_idxs]
 
