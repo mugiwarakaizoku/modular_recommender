@@ -146,7 +146,7 @@ class MatrixFactorizerCF(BaseRecommender):
         normalization="l2",
         embedding_dim=40,
         n_iter=10000,
-        sgd_sample_size=10000,
+        sgd_sample_size=1000,
         lr=0.01,
         reg=0.01,
     ):
