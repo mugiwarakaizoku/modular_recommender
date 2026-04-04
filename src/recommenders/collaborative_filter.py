@@ -140,30 +140,38 @@ class MatrixFactorizerCF(BaseRecommender):
     For a given user-product interaction matrix, finds the latent factors of users and products
     """
 
-    def fit(
+    def __init__(
         self,
-        interactions_df,
         normalization="l2",
-        embedding_dim=40,
+        embedding_dim=20,
         n_iter=10000,
         sgd_sample_size=1000,
         lr=0.01,
         reg=0.01,
     ):
+        self.embedding_dim = embedding_dim
+        self.n_iter = n_iter
+        self.sgd_sample_size = sgd_sample_size
+        self.lr = lr
+        self.reg = reg
+        self.normalization = normalization
+
+    def fit(self, interactions_df):
         (
             self.user_product_matrix,
             self.user_ids,
             self.product_ids,
-        ) = build_user_product_matrix(interactions_df, normalization)
+        ) = build_user_product_matrix(interactions_df, self.normalization)
+
         n_users = len(self.user_ids)
         n_products = len(self.product_ids)
 
         scale = 0.01
         self.user_embedding_matrix = np.random.normal(
-            0, scale, (n_users, embedding_dim)
+            0, scale, (n_users, self.embedding_dim)
         )
         self.product_embedding_matrix = np.random.normal(
-            0, scale, (n_products, embedding_dim)
+            0, scale, (n_products, self.embedding_dim)
         )
 
         user_product_coo = self.user_product_matrix.tocoo()
@@ -198,8 +206,8 @@ class MatrixFactorizerCF(BaseRecommender):
         )
         self.product_bias = product_means - self.global_mean
 
-        for i in range(n_iter):
-            actual_sample_size = min(sgd_sample_size, len(user_product_coo.data))
+        for i in range(self.n_iter):
+            actual_sample_size = min(self.sgd_sample_size, len(user_product_coo.data))
             idx = np.random.choice(
                 len(user_product_coo.data), actual_sample_size, replace=False
             )
@@ -223,11 +231,11 @@ class MatrixFactorizerCF(BaseRecommender):
             )  # sgd_sample_size
             err = sampled_actuals - pred
 
-            user_updates = lr * (
-                err[:, None] * p_vecs - reg * u_vecs
+            user_updates = self.lr * (
+                err[:, None] * p_vecs - self.reg * u_vecs
             )  # sgd_sample_size * embedding_dim
 
-            product_updates = lr * (err[:, None] * u_vecs - reg * p_vecs)
+            product_updates = self.lr * (err[:, None] * u_vecs - self.reg * p_vecs)
 
             # handles updates for repeated users correctly
             np.add.at(self.user_embedding_matrix, sampled_user_ids, user_updates)
@@ -239,12 +247,12 @@ class MatrixFactorizerCF(BaseRecommender):
             np.add.at(
                 self.user_bias,
                 sampled_user_ids,
-                lr * (err - reg * self.user_bias[sampled_user_ids]),
+                self.lr * (err - self.reg * self.user_bias[sampled_user_ids]),
             )
             np.add.at(
                 self.product_bias,
                 sampled_product_ids,
-                lr * (err - reg * self.product_bias[sampled_product_ids]),
+                self.lr * (err - self.reg * self.product_bias[sampled_product_ids]),
             )
 
     def predict(self, user_ids, product_ids):
