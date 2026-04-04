@@ -163,7 +163,7 @@ class MatrixFactorizerCF(BaseRecommender):
             0, scale, (n_users, embedding_dim)
         )
         self.product_embedding_matrix = np.random.normal(
-            0, scale, (embedding_dim, n_products)
+            0, scale, (n_products, embedding_dim)
         )
 
         user_product_coo = self.user_product_matrix.tocoo()
@@ -174,7 +174,7 @@ class MatrixFactorizerCF(BaseRecommender):
 
         self.global_mean = csr_data.mean() if csr_data.size > 0 else 0.0
 
-        row_sum = np.add.reduceat(csr_data, csr_ind_ptr[:-1])
+        row_sum = np.asarray(self.user_product_matrix.sum(axis=1)).flatten()
         row_cnt = np.diff(csr_ind_ptr)
         user_means = np.divide(
             row_sum,
@@ -212,8 +212,8 @@ class MatrixFactorizerCF(BaseRecommender):
                 sampled_user_ids
             ]  # sgd_sample_size*embedding_dim
             p_vecs = self.product_embedding_matrix[
-                :, sampled_product_ids
-            ].T  # sgd_sample_size*embedding_dim
+                sampled_product_ids
+            ]  # sgd_sample_size*embedding_dim
 
             pred = (
                 np.sum(u_vecs * p_vecs, axis=1)
@@ -231,9 +231,9 @@ class MatrixFactorizerCF(BaseRecommender):
 
             # handles updates for repeated users correctly
             np.add.at(self.user_embedding_matrix, sampled_user_ids, user_updates)
-
-            tmp_prod_embedding = self.product_embedding_matrix.T
-            np.add.at(tmp_prod_embedding, sampled_product_ids, product_updates)
+            np.add.at(
+                self.product_embedding_matrix, sampled_product_ids, product_updates
+            )
 
             # bias updates
             np.add.at(
@@ -260,13 +260,13 @@ class MatrixFactorizerCF(BaseRecommender):
 
         user_embedding = self.user_embedding_matrix[user_idxs]  # n_user*embedd
         product_embedding = self.product_embedding_matrix[
-            :, product_idxs
-        ].T  # n_product*embedd
+            product_idxs
+        ]  # n_product*embedd
 
         scores = (
-            np.sum(user_embedding * product_embedding, axis=1)
+            user_embedding @ product_embedding.T
             + self.global_mean
-            + self.user_bias[user_idxs]
+            + self.user_bias[user_idxs][:, None]
             + self.product_bias[product_idxs]
         )
 
@@ -282,13 +282,7 @@ class MatrixFactorizerCF(BaseRecommender):
         user_idx = self.user_ids.get_loc(user_id)
         purchased_products_idx = self.user_product_matrix[user_idx].indices
 
-        user_embedding = self.user_embedding_matrix[user_idx]  # 1*embedding_dim
-        predictions = (
-            (user_embedding @ self.product_embedding_matrix).flatten()
-            + self.global_mean
-            + self.user_bias[user_idx]
-            + self.product_bias
-        )  # n_products
+        predictions = self.predict([user_id], self.product_ids).flatten()
         predictions[purchased_products_idx] = -np.inf
 
         top_product_idxs = np.argpartition(predictions, -n)[-n:]
